@@ -2,28 +2,34 @@ import random
 import pygame
 import math
 
+# initialize pygame
 pygame.init()
 pygame.mixer.init()
 
+# parameters for testing
 testing = False
 invincibility = False
 
+# misc game constants
 high_fps = 60
 fps = 16  # standard is 12
 width = 224
 height = 288  # maze is 224x256, show score above
 volume = 0.05
 
+GameExit = False
+
 black = (0, 0, 0)
 white = (255, 255, 255)
 
+# create necessary objects for pygame
 pygame.display.set_mode((width, height))
 pygame.display.set_caption("Pac-Man")
 clock = pygame.time.Clock()
-GameExit = False
 pac_font = pygame.font.Font("./Fonts/pac_font.ttf", 8)
 pac_font.set_bold(True)
 
+# initialize sounds
 pac_chomp = pygame.mixer.Sound("./Sounds/pacman_chomp.wav")
 pac_eatpallet = pygame.mixer.Sound("./Sounds/pacman_eatpallet.wav")  # is actually fruit eating sound from game
 pac_chomp_channel = pygame.mixer.Channel(0)
@@ -44,7 +50,7 @@ pac_death_channel.set_volume(volume)
 
 ghost_eat_scores = pygame.image.load("./Sprites/misc/ghost_eat_scores.png")
 
-
+# game over loop
 def game_over():
     Screen.update()
     pac_chomp_channel.stop()
@@ -67,6 +73,11 @@ def game_over():
 
 class Maze(object):
     def __init__(self):
+        # w is wall
+        # f is food
+        # o is open
+        # P is power pallet
+        # G is Ghost house
         self.grid = [
             list("wwwwwwwwwwwwwwwwwwwwwwwwwwww"),
             list("wffffffffffffwwffffffffffffw"),
@@ -104,19 +115,10 @@ class Maze(object):
         def __repr__(self):
             return self.grid
 
-
-
-
-# w is wall
-# f is food
-# o is open
-# P is power pallet
-# G is Ghost house
-
 maze = Maze()
 level = 0
 
-
+# determine the amount of food there is left
 def get_food_left():
     maze_ref = []
     for y in range(len(maze.grid)):
@@ -127,17 +129,23 @@ def get_food_left():
 max_food = get_food_left()
 
 
-class Fruit(object):        # fruit is (0, level*20, 14, 14)
+class Fruit(object):        # fruit sprite is (0, level*20, 14, 14)
     def __init__(self):
+        # coords
         self.x = 13
         self.y = 17
+        
+        # time it is alive/if it is alive
         self.time_left = 7*fps
         self.available = False
+        
+        # sprite, time and sprite for the score popup
         self.sprite = pygame.image.load("./Sprites/misc/fruits.png")
         self.score_frames = 0
         self.score_sprite = pygame.image.load("./Sprites/misc/fruit_scores.png")
 
     def check_availability(self):
+        # check if the fruit should be made available
         if not self.available:
             if get_food_left() == 160:
                 self.available = True
@@ -148,15 +156,17 @@ class Fruit(object):        # fruit is (0, level*20, 14, 14)
             if self.time_left == 0:
                 self.available = False
                 self.time_left = 7*fps
-
+    
     def draw(self):
+        # blitting the sprite if necessary
         if self.available:
             fruit_surface = pygame.Surface((14, 14))
             fruit_surface.blit(self.sprite, (0, 0),
                                (0, level*20 if level < 7 else 7*20, 14, 14))
             fruit_surface.set_colorkey((0, 0, 0))
             Screen.screen.blit(fruit_surface, (self.x*8 - 3, self.y*8 + 16 - 3))
-
+        
+        # blitting the score if necessary
         if self.score_frames > 0:
             self.score_frames -= 1
             score_surface = pygame.Surface((22, 9))
@@ -175,7 +185,9 @@ fruit = Fruit()
 
 
 class ScreenClass(object):
+    
     def __init__(self):
+        # Initialize sprites
         self.screen = pygame.display.set_mode((width, height))
         self.maze = pygame.image.load("./Sprites/misc/pac-man_maze.png")
         self.food = pygame.image.load("./Sprites/misc/food.png")
@@ -183,9 +195,11 @@ class ScreenClass(object):
         self.life = pygame.image.load("./Sprites/misc/life.png")
 
     def update(self):
+        # blit background
         self.screen.fill(black)
         self.screen.blit(self.maze, (0, 8))
         
+        # blit fruit, and (flashing) power pallets
         for y in range(len(maze.grid)):
             for x in range(len(maze.grid[y])):
                 if maze.grid[y][x] == "f":
@@ -193,18 +207,21 @@ class ScreenClass(object):
                 elif maze.grid[y][x] == "P":
                     if frames % 2 == 0:
                         self.screen.blit(self.power_p, (8*x, 16 + 8*y))
-
+        
+        # blit on screen text, lives
         score_word = pac_font.render("SCORE", 1, white)
         score_value = pac_font.render("0" * (5 - len(str(pac_man.score))) + str(pac_man.score), 1, white)
         self.screen.blit(score_word, (73, -2))
         self.screen.blit(score_value, (73, 6))
-
+    
         for life in range(pac_man.lives):
             self.screen.blit(self.life, (life*12, 274))
-
+        
+        # every 2 frames, check if the fruit should be made visible
         if frames % 2 == 0:
             fruit.check_availability()
-
+        
+        # update fruit, pac man and ghosts
         fruit.draw()
 
         pac_man.draw()
@@ -217,12 +234,13 @@ class ScreenClass(object):
 
 Screen = ScreenClass()
 
-
+## The player
 class PacMan(object):
 
     directions = [(1, 0), (0, -1), (-1, 0), (0, 1)]
 
     def __init__(self):
+        # position, direction, stored direction, walking animation sprites
         self.x = 14
         self.y = 23
         self.direction = (1, 0)
@@ -232,6 +250,8 @@ class PacMan(object):
                         pygame.image.load("./Sprites/pac/pac_mid.png"),
                         pygame.image.load("./Sprites/pac/pac_closed.png"),]
         self.sprites.append(self.sprites[1])
+        
+        # counting variables
         self.score = 0
         self.powered = 0
         self.has_moved = False
@@ -243,12 +263,14 @@ class PacMan(object):
         self.dead = False
 
     def draw(self):
+        # blitting the player
         if not self.dead:
             rotated = pygame.transform.rotate(self.sprites[self.frame], 90*self.directions.index(self.direction))
             rotated.set_colorkey((0, 0, 0))
             Screen.screen.blit(rotated, (self.x*8 - 3, 16 + self.y*8 - 3))
 
     def death_animation(self):
+        # death animation loop
         pac_chomp_channel.stop()
         siren_channel.stop()
         pac_death_channel.play(pac_death)
@@ -265,10 +287,12 @@ class PacMan(object):
             Screen.screen.blit(death_surface, (8*self.x - 3, 16 + 8*self.y - 3))
             pygame.display.flip()
             clock.tick(8)
+        # keep the screen empty while the death sound is playing
         while pac_death_channel.get_busy():
             clock.tick(fps)
-
+    
     def die(self):
+        # method that kills pac man and resets the ghosts
         self.dead = True
         global frames
         shadow.__init__("shadow")
@@ -289,6 +313,7 @@ class PacMan(object):
             game_over()
 
     def eat_pallet(self):
+        # method that powers up pacman
         pac_chomp_channel.play(pac_eatpallet)
         while pac_chomp_channel.get_busy():
             for event in pygame.event.get():
@@ -300,6 +325,8 @@ class PacMan(object):
             clock.tick(fps)
 
     def move(self):
+        # move function
+        # check if pac man dies/eats a ghost
         if not invincibility:
             for ghost in [shadow, pinky, bashful, pokey]:
                 if (self.x == ghost.x and self.y == ghost.y) or\
@@ -311,17 +338,20 @@ class PacMan(object):
                         self.ghosts_destroyed += 1
                     elif ghost.mode != "dead":
                         self.die()
-
+        
+        # checking for directions pac man is allowed to move
         opens = []
         for direction in self.directions:
             if len(maze.grid[self.y]) > self.x + direction[0] >= 0:
                 if len(maze.grid) > self.y + direction[1] >= 0:
                     if maze.grid[self.y + direction[1]][self.x + direction[0]] != "w":
                         opens.append(direction)
-
+        
+        # move if direction is open
         if self.next_direction in opens:
             self.direction = self.next_direction
-
+        
+        # pop up on the other side of the screen when you fall off
         if self.x + self.direction[0] < 0:
             self.x = 27
             self.has_moved = True
@@ -334,7 +364,8 @@ class PacMan(object):
             self.has_moved = True
         else:
             self.has_moved = False
-
+        
+        # eat food, power pallet or fruit
         if maze.grid[self.y][self.x] == "f":
             maze.grid[self.y][self.x] = "o"
             self.score += 10
@@ -346,6 +377,7 @@ class PacMan(object):
             self.powered = 10 * fps
             self.score += 50
             self.eat_pallet()
+            # update the ghosts to be scared
             for ghost in [shadow, pinky, bashful, pokey]:
                 if ghost.mode != "trapped":
                     ghost.mode = "scared"
@@ -363,6 +395,8 @@ def get_distance(pos1, pos2):
     return math.sqrt((pos1[0] - pos2[0])**2 + (pos1[1] - pos2[1])**2)
 
 
+# Ghost class
+# holds all basic methods for ghosts
 class GhostClass(object):
 
     directions = [(0, -1), (0, 1), (-1, 0), (1, 0)]
@@ -392,6 +426,7 @@ class GhostClass(object):
         self.target = (pac_man.x, pac_man.y)
 
     def move(self):
+        # basic movement function depending on target
         self.get_target()
 
         opens = []
